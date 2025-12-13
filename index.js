@@ -10,6 +10,37 @@ app.use(cors())
 app.use(express.json())
 
 
+// middleware
+
+const admin = require("firebase-admin");
+const decoded = Buffer.from(process.env.FB_SERVICE_KEY, 'base64').toString('utf8')
+const serviceAccount = JSON.parse(decoded);
+
+admin.initializeApp({
+    credential: admin.credential.cert(serviceAccount)
+});
+
+const verifyFBToken = async (req, res, next) => {
+    const authHeader = req.headers.authorization;
+    if (!authHeader) {
+        return res.status(401).send({ message: 'Unauthorized access' });
+    }
+
+    try {
+        const token = authHeader.split(' ')[1];
+        const decodedToken = await admin.auth().verifyIdToken(token);
+        console.log("decoded info", decodedToken);
+        req.decoded_email = decodedToken.email;
+        next();
+    } catch (error) {
+        console.error(error);
+        res.status(401).send({ message: 'Unauthorized access' });
+    }
+};
+
+
+
+
 const uri = process.env.MONGODB_URI;
 console.log(uri);
 
@@ -28,9 +59,9 @@ async function run() {
         //collections
         const database = client.db('bloodDonationDB')
         const usersCollections = database.collection('users');
-        
+        const donationRequestsCollection = database.collection('donationRequests');
 
-        // user post role
+        // Create user
         app.post('/users', async (req, res) => {
             const userInfo = req.body;
             userInfo.role = "donor"
@@ -41,6 +72,7 @@ async function run() {
             res.send(result)
         })
 
+        // Get user by email
         app.get('/users/role/:email', async (req, res) => {
             const { email } = req.params;
             console.log(email);
@@ -53,7 +85,15 @@ async function run() {
 
         })
 
+        // Create donation request
+        app.post('/donation-requests', verifyFBToken, async (req, res) => {
+            const requestInfo = req.body;
+            requestInfo.status = 'pending';
+            requestInfo.createdAt = new Date();
 
+            const result = await donationRequestsCollection.insertOne(requestInfo)
+            res.send(result)
+        })
 
 
         await client.db("admin").command({ ping: 1 });
