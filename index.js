@@ -121,6 +121,7 @@ async function run() {
         // Create donation request
         app.post('/donation-requests', verifyFBToken, async (req, res) => {
             const requestInfo = req.body;
+            requestInfo.requesterEmail = req.decoded_email
             requestInfo.status = 'pending';
             requestInfo.createdAt = new Date();
 
@@ -129,6 +130,22 @@ async function run() {
         })
 
 
+        // Get my donation requests
+        app.get('/donation-requests', verifyFBToken, async (req, res) => {
+            // console.log("decoded email:", req.decoded_email);
+            const email = req.decoded_email
+            const size = Number(req.query.size)
+            const page = Number(req.query.page)
+            const query = { requesterEmail: email }
+
+            const result = await donationRequestsCollection
+                .find(query)
+                .limit(size)
+                .skip(size * page)
+                .toArray()
+            res.send(result)
+
+        });
 
 
 
