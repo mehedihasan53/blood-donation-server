@@ -1,5 +1,5 @@
 const express = require("express");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const cors = require("cors");
 require("dotenv").config();
 
@@ -145,6 +145,16 @@ async function run() {
             );
             res.send({ request: result, totalRequest });
         });
+
+        // Get single request by ID
+        app.get("/donation-requests/:id", verifyFBToken, async (req, res) => {
+            const id = req.params.id;
+            const request = await donationRequestsCollection.findOne({ _id: new ObjectId(id) });
+            res.send(request);
+        });
+
+
+
 
         await client.db("admin").command({ ping: 1 });
         console.log(
