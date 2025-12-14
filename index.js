@@ -6,6 +6,7 @@ require("dotenv").config();
 const app = express();
 const port = 3000;
 
+
 app.use(cors());
 app.use(express.json());
 
@@ -153,6 +154,23 @@ async function run() {
             res.send(request);
         });
 
+        // Update request by ID
+        app.patch("/donation-requests/:id", verifyFBToken, async (req, res) => {
+            const id = req.params.id;
+            const updateData = req.body;
+            const result = await donationRequestsCollection.updateOne(
+                { _id: new ObjectId(id) },
+                { $set: updateData }
+            );
+            res.send(result);
+        });
+
+        // Delete request by ID
+        app.delete("/donation-requests/:id", verifyFBToken, async (req, res) => {
+            const id = req.params.id;
+            const result = await donationRequestsCollection.deleteOne({ _id: new ObjectId(id) });
+            res.send(result);
+        });
 
 
 
