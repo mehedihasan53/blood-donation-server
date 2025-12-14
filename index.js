@@ -72,6 +72,13 @@ async function run() {
             res.send(result)
         })
 
+        // Get all users
+        app.get('/users', verifyFBToken, async (req, res) => {
+            const result = await usersCollections.find({}).toArray();
+            res.status(200).send(result);
+        })
+
+
         // Get user by email
         app.get('/users/role/:email', async (req, res) => {
             const { email } = req.params;
@@ -85,6 +92,32 @@ async function run() {
 
         })
 
+
+        app.patch('/update/user/status', verifyFBToken, async (req, res) => {
+            const { email, status } = req.query;
+            const query = { email: email }
+            const updatedStatus = {
+                $set: {
+                    status: status
+                }
+            }
+            const result = await usersCollections.updateOne(query, updatedStatus)
+            res.send(result)
+        })
+
+        // Update user role
+        app.patch('/update/user/role', verifyFBToken, async (req, res) => {
+            const { email, role } = req.query;
+            const query = { email: email };
+            const updatedRole = {
+                $set: {
+                    role: role
+                }
+            };
+            const result = await usersCollections.updateOne(query, updatedRole);
+            res.send(result);
+        });
+
         // Create donation request
         app.post('/donation-requests', verifyFBToken, async (req, res) => {
             const requestInfo = req.body;
@@ -94,6 +127,10 @@ async function run() {
             const result = await donationRequestsCollection.insertOne(requestInfo)
             res.send(result)
         })
+
+
+
+
 
 
         await client.db("admin").command({ ping: 1 });
