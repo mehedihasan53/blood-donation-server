@@ -61,6 +61,7 @@ async function run() {
         const database = client.db("bloodDonationDB");
         const usersCollections = database.collection("users");
         const donationRequestsCollection = database.collection("donationRequests");
+        const paymentsCollection = database.collection("payments");
 
         // Create user
         app.post("/users", async (req, res) => {
@@ -210,9 +211,53 @@ async function run() {
         });
 
         // payment success
-        app.get('/success-payment',(req,res)=>{
-            res.send('Payment Success')
+        app.post('/success-payment', async (req, res) => {
+            const { session_id } = req.query;
+            const session = await stripe.checkout.sessions.retrieve(
+                session_id
+            );
+            console.log(session);
+            const transactionId = session.payment_intent
+
+            if (session.payment_status == 'paid') {
+                const paymentInfo = {
+                    amount: session.amount_total / 100,
+                    currency: session.currency,
+                    donorEmail: session.customer_email,
+                    transactionId: transactionId,
+                    payment_status: session.payment_status,
+                    paidAt: new Date()
+                }
+                const result = await paymentsCollection.insertOne(paymentInfo)
+                return res.send(result)
+            }
+
         })
+
+
+        // search request
+        app.get('/search-request', async (req, res) => {
+            const { bloodGroup, district, upazila } = req.query;
+
+            if (!bloodGroup) {
+                return res.status(400).send({ message: "bloodGroup is required" });
+            }
+
+            const query = { bloodGroup };
+
+            if (district && district !== '') {
+                query.recipientDistrict = district;
+            }
+
+            if (upazila && upazila !== '') {
+                query.recipientUpazila = upazila;
+            }
+
+            const result = await donationRequestsCollection.find(query).toArray();
+            res.send(result);
+        });
+
+
 
         await client.db("admin").command({ ping: 1 });
         console.log(
