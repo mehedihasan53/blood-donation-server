@@ -5,7 +5,8 @@ require("dotenv").config();
 
 const app = express();
 const port = 3000;
-
+const stripe = require("stripe")(process.env.STRIPE_SECRET_KEY);
+const crypto = require("crypto");
 
 app.use(cors());
 app.use(express.json());
@@ -13,6 +14,7 @@ app.use(express.json());
 // middleware
 
 const admin = require("firebase-admin");
+const { log } = require("console");
 const decoded = Buffer.from(process.env.FB_SERVICE_KEY, "base64").toString(
     "utf8"
 );
@@ -133,7 +135,7 @@ async function run() {
             const status = req.query.status;
 
             const query = { requesterEmail: email };
-            if (status && status !== 'all') query.status = status;
+            if (status && status !== "all") query.status = status;
 
             const result = await donationRequestsCollection
                 .find(query)
@@ -150,7 +152,9 @@ async function run() {
         // Get single request by ID
         app.get("/donation-requests/:id", verifyFBToken, async (req, res) => {
             const id = req.params.id;
-            const request = await donationRequestsCollection.findOne({ _id: new ObjectId(id) });
+            const request = await donationRequestsCollection.findOne({
+                _id: new ObjectId(id),
+            });
             res.send(request);
         });
 
@@ -168,11 +172,47 @@ async function run() {
         // Delete request by ID
         app.delete("/donation-requests/:id", verifyFBToken, async (req, res) => {
             const id = req.params.id;
-            const result = await donationRequestsCollection.deleteOne({ _id: new ObjectId(id) });
+            const result = await donationRequestsCollection.deleteOne({
+                _id: new ObjectId(id),
+            });
             res.send(result);
         });
 
+        // payment gateway
+        app.post("/create-payment-checkout", async (req, res) => {
+            const information = req.body;
+            // console.log(information);
+            const amount = parseInt(information.donateAmount) * 100;
 
+            const session = await stripe.checkout.sessions.create({
+                line_items: [
+                    {
+                        price_data: {
+                            currency: "usd",
+                            unit_amount: amount,
+                            product_data: {
+                                name: "Please donate for the cause",
+                            },
+                        },
+                        quantity: 1,
+                    },
+                ],
+                mode: "payment",
+                metadata: {
+                    donorName: information?.donarName,
+                },
+                customer_email: information?.donorEmail,
+                success_url: `${process.env.SITE_DOMAIN}/payment-success?session_id={CHECKOUT_SESSION_ID}`,
+                cancel_url: `${process.env.SITE_DOMAIN}/payment-cancel`,
+            });
+
+            res.send({ url: session.url });
+        });
+
+        // payment success
+        app.get('/success-payment',(req,res)=>{
+            res.send('Payment Success')
+        })
 
         await client.db("admin").command({ ping: 1 });
         console.log(
