@@ -147,7 +147,7 @@ async function run() {
             const totalRequest = await donationRequestsCollection.countDocuments(
                 query
             );
-            res.send({ request: result, totalRequest });
+            res.send({ requests: result, totalRequest });
         });
 
         // Get single request by ID
@@ -158,6 +158,23 @@ async function run() {
             });
             res.send(request);
         });
+
+        // Get all pending donation requests 
+        app.get("/donation-requests/status/pending", async (req, res) => {
+            try {
+                const result = await donationRequestsCollection
+                    .find({ status: "pending" })
+                    .sort({ createdAt: -1 })
+                    .toArray();
+
+                res.status(200).send({ requests: result });
+            } catch (error) {
+                console.error(error);
+                res.status(500).send({ message: "Failed to fetch pending requests" });
+            }
+        });
+
+
 
         // Update request by ID
         app.patch("/donation-requests/:id", verifyFBToken, async (req, res) => {
@@ -178,6 +195,21 @@ async function run() {
             });
             res.send(result);
         });
+
+        // Update user profile
+        app.patch("/users/:email", verifyFBToken, async (req, res) => {
+            const email = req.params.email;
+            const updateData = req.body;
+
+            const result = await usersCollections.updateOne(
+                { email },
+                { $set: updateData }
+            );
+
+            res.send(result);
+        });
+
+
 
         // payment gateway
         app.post("/create-payment-checkout", async (req, res) => {
