@@ -211,32 +211,28 @@ async function run() {
         });
 
         // payment success
-        app.post('/success-payment', async (req, res) => {
+        app.post("/success-payment", async (req, res) => {
             const { session_id } = req.query;
-            const session = await stripe.checkout.sessions.retrieve(
-                session_id
-            );
+            const session = await stripe.checkout.sessions.retrieve(session_id);
             console.log(session);
-            const transactionId = session.payment_intent
+            const transactionId = session.payment_intent;
 
-            if (session.payment_status == 'paid') {
+            if (session.payment_status == "paid") {
                 const paymentInfo = {
                     amount: session.amount_total / 100,
                     currency: session.currency,
                     donorEmail: session.customer_email,
                     transactionId: transactionId,
                     payment_status: session.payment_status,
-                    paidAt: new Date()
-                }
-                const result = await paymentsCollection.insertOne(paymentInfo)
-                return res.send(result)
+                    paidAt: new Date(),
+                };
+                const result = await paymentsCollection.insertOne(paymentInfo);
+                return res.send(result);
             }
-
-        })
-
+        });
 
         // search request
-        app.get('/search-request', async (req, res) => {
+        app.get("/search-request", async (req, res) => {
             const { bloodGroup, district, upazila } = req.query;
 
             if (!bloodGroup) {
@@ -245,11 +241,11 @@ async function run() {
 
             const query = { bloodGroup };
 
-            if (district && district !== '') {
+            if (district && district !== "") {
                 query.recipientDistrict = district;
             }
 
-            if (upazila && upazila !== '') {
+            if (upazila && upazila !== "") {
                 query.recipientUpazila = upazila;
             }
 
@@ -257,7 +253,59 @@ async function run() {
             res.send(result);
         });
 
+        // Admin Dashboard Stats
+        app.get("/dashboard/stats", verifyFBToken, async (req, res) => {
+            const totalUsers = await usersCollections.countDocuments();
 
+            const totalDonors = await usersCollections.countDocuments({
+                role: "donor",
+            });
+
+            const totalRequests = await donationRequestsCollection.countDocuments();
+
+            const pendingRequests = await donationRequestsCollection.countDocuments({
+                status: "pending",
+            });
+
+            const completedRequests = await donationRequestsCollection.countDocuments(
+                {
+                    status: "done",
+                }
+            );
+
+            const fundingAgg = await paymentsCollection
+                .aggregate([
+                    {
+                        $group: {
+                            _id: null,
+                            totalAmount: { $sum: "$amount" },
+                        },
+                    },
+                ])
+                .toArray();
+
+            const totalFunding =
+                fundingAgg.length > 0 ? fundingAgg[0].totalAmount : 0;
+
+            const recentDonations = await donationRequestsCollection
+                .find({})
+                .sort({ createdAt: -1 })
+                .limit(5)
+                .toArray();
+
+            res.send({
+                success: true,
+                stats: {
+                    totalUsers,
+                    totalDonors,
+                    totalRequests,
+                    pendingRequests,
+                    completedRequests,
+                    totalFunding,
+                    recentDonations,
+                },
+            });
+        });
 
         await client.db("admin").command({ ping: 1 });
         console.log(
