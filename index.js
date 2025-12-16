@@ -63,6 +63,16 @@ async function run() {
         const donationRequestsCollection = database.collection("donationRequests");
         const paymentsCollection = database.collection("payments");
 
+        // role verification middleware
+        const verifyRole = (roles) => async (req, res, next) => {
+            const email = req.decoded_email;
+            const user = await usersCollections.findOne({ email });
+            if (!user || !roles.includes(user.role)) {
+                return res.status(403).send({ message: "Forbidden access" });
+            }
+            next();
+        };
+
         // Create user
         app.post("/users", async (req, res) => {
             const userInfo = req.body;
@@ -159,7 +169,7 @@ async function run() {
             res.send(request);
         });
 
-        // Get all pending donation requests 
+        // Get all pending donation requests
         app.get("/donation-requests/status/pending", async (req, res) => {
             try {
                 const result = await donationRequestsCollection
@@ -173,8 +183,6 @@ async function run() {
                 res.status(500).send({ message: "Failed to fetch pending requests" });
             }
         });
-
-
 
         // Update request by ID
         app.patch("/donation-requests/:id", verifyFBToken, async (req, res) => {
@@ -208,8 +216,6 @@ async function run() {
 
             res.send(result);
         });
-
-
 
         // payment gateway
         app.post("/create-payment-checkout", async (req, res) => {
@@ -338,6 +344,62 @@ async function run() {
                 },
             });
         });
+
+        // filter status
+        app.get(
+            "/volunteer/donation-requests",
+            verifyFBToken,
+            verifyRole(["admin", "volunteer"]),
+            async (req, res) => {
+                const { status } = req.query;
+                let query = {};
+
+                if (status && status !== "all") {
+                    query.status = status;
+                }
+
+                const result = await donationRequestsCollection
+                    .find(query)
+                    .sort({ createdAt: -1 })
+                    .toArray();
+                res.send(result);
+            }
+        );
+
+        // updated status
+        app.patch(
+            "/volunteer/donation-requests/status/:id",
+            verifyFBToken,
+            verifyRole(["admin", "volunteer"]),
+            async (req, res) => {
+                const id = req.params.id;
+                const { status } = req.body;
+
+                const result = await donationRequestsCollection.updateOne(
+                    { _id: new ObjectId(id) },
+                    { $set: { status: status } }
+                );
+                res.send(result);
+            }
+        );
+
+        // volunteer dashboard
+        app.get(
+            "/volunteer/stats",
+            verifyFBToken,
+            verifyRole(["admin", "volunteer"]),
+            async (req, res) => {
+                const total = await donationRequestsCollection.countDocuments();
+                const pending = await donationRequestsCollection.countDocuments({
+                    status: "pending",
+                });
+                const done = await donationRequestsCollection.countDocuments({
+                    status: "done",
+                });
+
+                res.send({ total, pending, done });
+            }
+        );
 
         await client.db("admin").command({ ping: 1 });
         console.log(
