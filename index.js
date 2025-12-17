@@ -220,7 +220,6 @@ async function run() {
         // payment gateway
         app.post("/create-payment-checkout", async (req, res) => {
             const information = req.body;
-            // console.log(information);
             const amount = parseInt(information.donateAmount) * 100;
 
             const session = await stripe.checkout.sessions.create({
