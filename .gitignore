@@ -1,3 +1,4 @@
 node_modules
 .evn
 blood-donation.json
+.vercel
